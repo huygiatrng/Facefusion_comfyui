@@ -99,7 +99,7 @@ class SwapFaceImage:
 		return (output_tensor,)
 
 	@staticmethod
-	def swap_face(source_tensor : Tensor, target_tensor : Tensor, api_token : str, face_swapper_model : FaceSwapperModel, pixel_boost: str = '512x512', face_mask_blur: float = 0.3, face_occluder_model: Optional[str] = None, face_parser_model: Optional[str] = None) -> Tensor:
+	def swap_face(source_tensor : Tensor, target_tensor : Tensor, api_token : str, face_swapper_model : FaceSwapperModel, pixel_boost: str = '512x512', face_mask_blur: float = 0.3, face_occluder_model: Optional[str] = None, face_parser_model: Optional[str] = None, face_selector_mode: str = 'one', face_position: int = 0, score_threshold: float = 0.3) -> Tensor:
 		# Check if using local inference
 		if api_token == '-1':
 			# print("[SwapFaceImage] Using local inference")
@@ -125,9 +125,9 @@ class SwapFaceImage:
 					model_name=face_swapper_model,
 					pixel_boost=pixel_boost,
 					face_mask_blur=face_mask_blur,
-					face_selector_mode='one',
-					face_position=0,
-					score_threshold=0.3,
+					face_selector_mode=face_selector_mode,
+					face_position=face_position,
+					score_threshold=score_threshold,
 					face_occluder_model=face_occluder_model,
 					face_parser_model=face_parser_model
 				)
@@ -220,15 +220,15 @@ class SwapFaceVideo:
 	@staticmethod
 	def process(source_images : Tensor, target_video : VideoFromComponents, api_token : str, face_swapper_model : FaceSwapperModel, max_workers : int) -> Tuple[VideoFromComponents]:
 		try:
-		# Handle multiple source images by taking the first one
-		if source_images.dim() == 4 and source_images.shape[0] > 1:
-			source_image = source_images[0:1]
-		else:
-			source_image = source_images
-			
+			# Handle multiple source images by taking the first one
+			if source_images.dim() == 4 and source_images.shape[0] > 1:
+				source_image = source_images[0:1]
+			else:
+				source_image = source_images
+				
 			# Get video components with error handling
 			try:
-		video_components = target_video.get_components()
+				video_components = target_video.get_components()
 			except Exception as e:
 				error_msg = str(e)
 				if 'Invalid data found' in error_msg or 'avcodec' in error_msg or 'Number of bands' in error_msg:
@@ -291,29 +291,29 @@ class SwapFaceVideo:
 					)
 					return (VideoFromComponents(output_video_components),)
 			
-		output_tensors = []
+			output_tensors = []
 
-		swap_face = partial(
-			SwapFaceImage.swap_face,
-			source_image,
-			api_token = api_token,
-			face_swapper_model = face_swapper_model
-		)
+			swap_face = partial(
+				SwapFaceImage.swap_face,
+				source_image,
+				api_token = api_token,
+				face_swapper_model = face_swapper_model
+			)
 
-		with ThreadPoolExecutor(max_workers = max_workers) as executor:
-			for temp_tensor in executor.map(swap_face, video_components.images):
-				temp_tensor = temp_tensor.squeeze(0)[..., :3]
-				output_tensors.append(temp_tensor)
+			with ThreadPoolExecutor(max_workers = max_workers) as executor:
+				for temp_tensor in executor.map(swap_face, video_components.images):
+					temp_tensor = temp_tensor.squeeze(0)[..., :3]
+					output_tensors.append(temp_tensor)
 
-		output_video_components = VideoComponents(
-			images = torch.stack(output_tensors),
-			audio = video_components.audio,
-			frame_rate = video_components.frame_rate
-		)
+			output_video_components = VideoComponents(
+				images = torch.stack(output_tensors),
+				audio = video_components.audio,
+				frame_rate = video_components.frame_rate
+			)
 
-		output_video = VideoFromComponents(output_video_components)
-		return (output_video,)
-			
+			output_video = VideoFromComponents(output_video_components)
+			return (output_video,)
+				
 		except RuntimeError as e:
 			# Re-raise RuntimeError with clear message (don't return original video)
 			print(f"[SwapFaceVideo] Fatal error: {e}")
@@ -643,7 +643,10 @@ class AdvancedSwapFaceImage:
 					pixel_boost, 
 					face_mask_blur,
 					face_occluder_model,
-					face_parser_model
+					face_parser_model,
+					face_selector_mode,
+					face_position,
+					score_threshold
 				)
 				output_images.append(swapped)
 			
@@ -659,7 +662,10 @@ class AdvancedSwapFaceImage:
 				pixel_boost, 
 				face_mask_blur,
 				face_occluder_model,
-				face_parser_model
+				face_parser_model,
+				face_selector_mode,
+				face_position,
+				score_threshold
 			)
 		
 		return (output_tensor,)
@@ -800,15 +806,15 @@ class AdvancedSwapFaceVideo:
 	) -> Tuple[VideoFromComponents]:
 		"""Process video face swapping with advanced selection."""
 		try:
-		# Handle multiple source images
-		if source_images.dim() == 4 and source_images.shape[0] > 1:
-			source_image = source_images[0:1]
-		else:
-			source_image = source_images
-		
+			# Handle multiple source images
+			if source_images.dim() == 4 and source_images.shape[0] > 1:
+				source_image = source_images[0:1]
+			else:
+				source_image = source_images
+			
 			# Get video components with error handling
 			try:
-		video_components = target_video.get_components()
+				video_components = target_video.get_components()
 			except Exception as e:
 				error_msg = str(e)
 				if 'Invalid data found' in error_msg or 'avcodec' in error_msg or 'Number of bands' in error_msg:
@@ -870,31 +876,36 @@ class AdvancedSwapFaceVideo:
 					)
 					return (VideoFromComponents(output_video_components),)
 			
-		output_tensors = []
+			output_tensors = []
 
-		swap_face = partial(
-			SwapFaceImage.swap_face,
-			source_image,
-			api_token = api_token,
+			swap_face = partial(
+				SwapFaceImage.swap_face,
+				source_image,
+				api_token = api_token,
 				face_swapper_model = face_swapper_model,
 				pixel_boost = pixel_boost,
-				face_mask_blur = face_mask_blur
-		)
+				face_mask_blur = face_mask_blur,
+				face_occluder_model = face_occluder_model,
+				face_parser_model = face_parser_model,
+				face_selector_mode = face_selector_mode,
+				face_position = face_position,
+				score_threshold = score_threshold
+			)
 
-		with ThreadPoolExecutor(max_workers = max_workers) as executor:
-			for temp_tensor in executor.map(swap_face, video_components.images):
-				temp_tensor = temp_tensor.squeeze(0)[..., :3]
-				output_tensors.append(temp_tensor)
+			with ThreadPoolExecutor(max_workers = max_workers) as executor:
+				for temp_tensor in executor.map(swap_face, video_components.images):
+					temp_tensor = temp_tensor.squeeze(0)[..., :3]
+					output_tensors.append(temp_tensor)
 
-		output_video_components = VideoComponents(
-			images = torch.stack(output_tensors),
-			audio = video_components.audio,
-			frame_rate = video_components.frame_rate
-		)
+			output_video_components = VideoComponents(
+				images = torch.stack(output_tensors),
+				audio = video_components.audio,
+				frame_rate = video_components.frame_rate
+			)
 
-		output_video = VideoFromComponents(output_video_components)
-		return (output_video,)
-			
+			output_video = VideoFromComponents(output_video_components)
+			return (output_video,)
+				
 		except RuntimeError as e:
 			# Re-raise RuntimeError with clear message (don't return original video)
 			print(f"[AdvancedSwapFaceVideo] Fatal error: {e}")
