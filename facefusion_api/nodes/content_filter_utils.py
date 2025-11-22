@@ -15,9 +15,11 @@ try:
 except Exception as e:
     print(f"[FaceFusion] Content filter not available: {e}")
     CONTENT_FILTER_AVAILABLE = False
+
     # Define fallback functions
     def analyse_frame(frame):
         return False
+
     def blur_frame(frame, blur_amount=99):
         return frame
 

@@ -329,7 +329,7 @@ class FaceDetector:
                                      borderValue=(0, 0, 0))
             
             return aligned
-        except:
+        except Exception:
             return None
 
 

@@ -2,7 +2,7 @@
 Local face swapper using ONNX models.
 """
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -11,6 +11,10 @@ from numpy.typing import NDArray
 
 from ..utils import VisionFrame, Face, get_model_path, ensure_model_exists, implode_pixel_boost, explode_pixel_boost
 from .constants import MODEL_URLS, MODEL_CONFIGS, WARP_TEMPLATES
+
+if TYPE_CHECKING:
+    from .occluder import FaceOccluder
+    from .parser import FaceParser
 
 
 class LocalFaceSwapper:
