@@ -1,4 +1,4 @@
-# FaceFusion ComfyUI
+# FaceFusion ComfyUI (Unofficial)
 
 ![FaceFusion ComfyUI Demo](assets/Timeline%201.gif)
 
