@@ -1,0 +1,6 @@
+# Ignore downloaded NSFW detection models
+*.onnx
+*.hash
+__pycache__/
+*.pyc
+

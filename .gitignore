@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Models (large files) - downloaded automatically
+models/**/*.onnx
+models/**/*.hash
+models/**/*.pth
+models/**/*.pt
+models/**/*.safetensors
+models/**/*.bin
+
+# Keep models directory structure
+!models/.gitkeep
+
+# Temporary files
+*.tmp
+*.log
+*.cache
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ComfyUI specific
+output/
+temp/
+input/
+
+# Don't track facefusion-master (it's just reference)
+facefusion-master/

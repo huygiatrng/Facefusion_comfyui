@@ -1,0 +1,55 @@
+MIT License
+
+Copyright (c) 2025 FaceFusion ComfyUI Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+IMPORTANT NOTICES REGARDING THIRD-PARTY MODELS:
+
+This software uses ONNX models that are subject to their own licenses:
+
+1. InsightFace Models (SCRFD, ArcFace):
+   - Licensed for NON-COMMERCIAL use only
+   - See: https://github.com/deepinsight/insightface/tree/master/LICENSE
+
+2. Face Swapper Models (INSwapper, HyperSwap, BlendSwap, SimSwap, UniFace):
+   - Each model has its own license from the respective creators
+   - Models are downloaded from: https://github.com/facefusion/facefusion-assets
+   - Users must comply with individual model licenses
+
+3. FaceFusion Framework:
+   - This project is inspired by and based on FaceFusion
+   - See: https://github.com/facefusion/facefusion
+
+USAGE RESTRICTIONS:
+
+Due to the model licenses, this software and its models are restricted to 
+NON-COMMERCIAL USE ONLY unless you obtain appropriate commercial licenses 
+from the model creators.
+
+Users are solely responsible for:
+- Complying with all applicable laws and regulations
+- Respecting privacy and obtaining necessary consents
+- Using the software ethically and responsibly
+- Not creating misleading, harmful, or illegal content
+
+The authors and contributors of this software are not responsible for any
+misuse or violations of applicable laws or model licenses.
+

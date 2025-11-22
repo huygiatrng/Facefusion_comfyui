@@ -1,0 +1,4 @@
+httpx
+httpx-retries
+opencv-python
+onnxruntime
