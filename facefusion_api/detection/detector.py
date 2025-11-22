@@ -22,6 +22,9 @@ class FaceDetector:
     
     MODEL_URLS = {
         'scrfd_2.5g': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.0.0/scrfd_2.5g.onnx',
+        'retinaface_10g': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.0.0/retinaface_10g.onnx',
+        'yoloface_8n': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.0.0/yoloface_8n.onnx',
+        'yunet_2023_mar': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.4.0/yunet_2023_mar.onnx',
         'arcface_w600k_r50': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.0.0/arcface_w600k_r50.onnx',
     }
     
@@ -65,33 +68,39 @@ class FaceDetector:
             return False
     
     def detect_faces(self, image: VisionFrame, score_threshold: float = 0.3) -> List[Face]:
-        """Detect faces - simplified to match facefusion implementation."""
+        """Detect faces - supports multiple detector models."""
         if self.detector_session is None:
             if not self.initialize():
                 return []
         
         try:
-            # Debug logging (commented out for cleaner output)
-            # print(f"[FaceDetector] Input image shape: {image.shape}, dtype: {image.dtype}")
-            # print(f"[FaceDetector] Score threshold: {score_threshold}")
-            
             # Prepare input - matching facefusion's approach
             detect_frame = self._prepare_detect_frame(image)
-            # print(f"[FaceDetector] Prepared frame shape: {detect_frame.shape}")
             
-            detect_frame = self._normalize_detect_frame(detect_frame)
-            # print(f"[FaceDetector] Normalized frame shape: {detect_frame.shape}, range: [{detect_frame.min():.3f}, {detect_frame.max():.3f}]")
+            # Normalize based on model type
+            if self.detector_model_name in ['yoloface_8n']:
+                detect_frame = self._normalize_detect_frame(detect_frame, [0, 1])
+            elif self.detector_model_name in ['yunet_2023_mar']:
+                detect_frame = self._normalize_detect_frame(detect_frame, [0, 255])
+            else:  # scrfd, retinaface
+                detect_frame = self._normalize_detect_frame(detect_frame, [-1, 1])
             
             # Run detection
             detection = self.detector_session.run(None, {'input': detect_frame})
-            # print(f"[FaceDetector] Detection outputs: {len(detection)} arrays, shapes: {[d.shape for d in detection]}")
             
-            # Parse results - matching facefusion's approach
-            bboxes, scores, landmarks = self._parse_scrfd_detection(
-                detection, image, score_threshold
-            )
-            
-            # print(f"[FaceDetector] Found {len(bboxes)} faces with scores: {scores}")
+            # Parse results based on model type
+            if self.detector_model_name == 'yoloface_8n':
+                bboxes, scores, landmarks = self._parse_yolo_face_detection(
+                    detection, image, score_threshold
+                )
+            elif self.detector_model_name == 'yunet_2023_mar':
+                bboxes, scores, landmarks = self._parse_yunet_detection(
+                    detection, image, score_threshold
+                )
+            else:  # scrfd, retinaface (same format)
+                bboxes, scores, landmarks = self._parse_scrfd_detection(
+                    detection, image, score_threshold
+                )
             
             # Create face dictionaries
             faces = []
@@ -111,7 +120,7 @@ class FaceDetector:
             return []
     
     def _prepare_detect_frame(self, image: VisionFrame) -> VisionFrame:
-        """Prepare image for detection - resize and maintain aspect ratio."""
+        """Prepare image for detection - resize, pad, and convert to CHW format."""
         height, width = image.shape[:2]
         detect_width, detect_height = self.detector_size
         
@@ -126,21 +135,29 @@ class FaceDetector:
         else:
             resized = image.copy()
         
-        # Create padded frame
-        padded = np.zeros((detect_height, detect_width, 3), dtype=np.uint8)
+        # Create padded frame (HWC format)
+        padded = np.zeros((detect_height, detect_width, 3), dtype=np.float32)
         padded[:new_height, :new_width] = resized
         
-        return padded
+        # Convert to CHW format and add batch dimension: (1, C, H, W)
+        detect_frame = np.transpose(padded, (2, 0, 1))
+        detect_frame = np.expand_dims(detect_frame, 0).astype(np.float32)
+        
+        return detect_frame
     
-    def _normalize_detect_frame(self, frame: VisionFrame) -> NDArray:
-        """Normalize frame for detection - match facefusion's [-1, 1] range."""
-        normalized = frame.astype(np.float32)
-        # Normalize to [-1, 1] range (facefusion uses 128.0 NOT 127.5!)
-        normalized = (normalized - 127.5) / 128.0
-        # Transpose to CHW format
-        normalized = np.transpose(normalized, (2, 0, 1))
-        normalized = np.expand_dims(normalized, 0)
-        return normalized
+    def _normalize_detect_frame(self, frame: VisionFrame, normalize_range: list = [-1, 1]) -> NDArray:
+        """Normalize frame for detection - supports different ranges."""
+        # Frame is already in CHW format from _prepare_detect_frame
+        if normalize_range == [-1, 1]:
+            # SCRFD, RetinaFace: [-1, 1] range
+            return (frame - 127.5) / 128.0
+        elif normalize_range == [0, 1]:
+            # YOLO Face: [0, 1] range
+            return frame / 255.0
+        elif normalize_range == [0, 255]:
+            # YuNet: [0, 255] range (no normalization)
+            return frame
+        return frame
     
     def _parse_scrfd_detection(
         self,
@@ -235,6 +252,133 @@ class FaceDetector:
             )
         
         return [], [], []
+    
+    def _parse_yolo_face_detection(
+        self,
+        detection: List[NDArray],
+        original_image: VisionFrame,
+        score_threshold: float
+    ) -> Tuple[List[BoundingBox], List[float], List[FaceLandmark5]]:
+        """Parse YOLO Face detection outputs - match facefusion's approach."""
+        bboxes_list = []
+        scores_list = []
+        landmarks_list = []
+        
+        orig_height, orig_width = original_image.shape[:2]
+        detect_width, detect_height = self.detector_size
+        
+        # Calculate actual scale used
+        scale = min(detect_height / orig_height, detect_width / orig_width)
+        temp_height = int(orig_height * scale)
+        temp_width = int(orig_width * scale)
+        
+        ratio_height = orig_height / temp_height
+        ratio_width = orig_width / temp_width
+        
+        # YOLO Face output format: (1, 16800, 15) -> (bboxes[4], score[1], landmarks[10])
+        detection_array = np.squeeze(detection[0]).T  # Shape: (N, 15)
+        bboxes_raw = detection_array[:, :4]
+        scores_raw = detection_array[:, 4]
+        landmarks_raw = detection_array[:, 5:]
+        
+        # Filter by score threshold
+        keep_indices = np.where(scores_raw > score_threshold)[0]
+        
+        if len(keep_indices) > 0:
+            bboxes_raw = bboxes_raw[keep_indices]
+            scores_raw = scores_raw[keep_indices]
+            landmarks_raw = landmarks_raw[keep_indices]
+            
+            # Convert YOLO format (center_x, center_y, width, height) to (x1, y1, x2, y2)
+            for bbox_raw in bboxes_raw:
+                x1 = (bbox_raw[0] - bbox_raw[2] / 2) * ratio_width
+                y1 = (bbox_raw[1] - bbox_raw[3] / 2) * ratio_height
+                x2 = (bbox_raw[0] + bbox_raw[2] / 2) * ratio_width
+                y2 = (bbox_raw[1] + bbox_raw[3] / 2) * ratio_height
+                bboxes_list.append(np.array([x1, y1, x2, y2]))
+            
+            scores_list = scores_raw.tolist()
+            
+            # Convert landmarks (15 values: x1,y1,conf1,x2,y2,conf2,...x5,y5,conf5)
+            # Extract only x,y coordinates (skip confidence values)
+            for landmark_raw in landmarks_raw:
+                # Reshape to (5, 3) then take only first 2 columns (x, y)
+                landmarks_reshaped = landmark_raw.reshape(-1, 3)[:, :2]
+                landmarks_reshaped[:, 0] *= ratio_width
+                landmarks_reshaped[:, 1] *= ratio_height
+                landmarks_list.append(landmarks_reshaped)
+        
+        return bboxes_list, scores_list, landmarks_list
+    
+    def _parse_yunet_detection(
+        self,
+        detection: List[NDArray],
+        original_image: VisionFrame,
+        score_threshold: float
+    ) -> Tuple[List[BoundingBox], List[float], List[FaceLandmark5]]:
+        """Parse YuNet detection outputs - match facefusion's approach."""
+        bboxes_list = []
+        scores_list = []
+        landmarks_list = []
+        
+        feature_strides = [8, 16, 32]
+        feature_map_channel = 3
+        anchor_total = 1
+        
+        orig_height, orig_width = original_image.shape[:2]
+        detect_width, detect_height = self.detector_size
+        
+        # Calculate actual scale used
+        scale = min(detect_height / orig_height, detect_width / orig_width)
+        temp_height = int(orig_height * scale)
+        temp_width = int(orig_width * scale)
+        
+        ratio_height = orig_height / temp_height
+        ratio_width = orig_width / temp_width
+        
+        for idx, feature_stride in enumerate(feature_strides):
+            # YuNet has classification and objectness scores
+            cls_scores = detection[idx]
+            obj_scores = detection[idx + feature_map_channel]
+            face_scores_raw = (cls_scores * obj_scores).reshape(-1)
+            
+            keep_indices = np.where(face_scores_raw >= score_threshold)[0]
+            
+            if len(keep_indices) > 0:
+                stride_height = detect_height // feature_stride
+                stride_width = detect_width // feature_stride
+                anchors = self._create_anchors(feature_stride, anchor_total, stride_height, stride_width)
+                
+                # Get bbox predictions (center + size)
+                bbox_preds = detection[idx + feature_map_channel * 2].squeeze(0)
+                bboxes_center = bbox_preds[:, :2] * feature_stride + anchors
+                bboxes_size = np.exp(bbox_preds[:, 2:4]) * feature_stride
+                
+                # Convert to x1, y1, x2, y2 format
+                x1 = (bboxes_center[:, 0] - bboxes_size[:, 0] / 2) * ratio_width
+                y1 = (bboxes_center[:, 1] - bboxes_size[:, 1] / 2) * ratio_height
+                x2 = (bboxes_center[:, 0] + bboxes_size[:, 0] / 2) * ratio_width
+                y2 = (bboxes_center[:, 1] + bboxes_size[:, 1] / 2) * ratio_height
+                
+                for i in keep_indices:
+                    bboxes_list.append(np.array([x1[i], y1[i], x2[i], y2[i]]))
+                
+                scores_list.extend(face_scores_raw[keep_indices].tolist())
+                
+                # Get landmark predictions
+                landmark_preds = detection[idx + feature_map_channel * 3].squeeze(0)
+                landmarks_decoded = np.concatenate([
+                    landmark_preds[:, [0, 1]] * feature_stride + anchors,
+                    landmark_preds[:, [2, 3]] * feature_stride + anchors,
+                    landmark_preds[:, [4, 5]] * feature_stride + anchors,
+                    landmark_preds[:, [6, 7]] * feature_stride + anchors,
+                    landmark_preds[:, [8, 9]] * feature_stride + anchors
+                ], axis=-1).reshape(-1, 5, 2)
+                
+                for i in keep_indices:
+                    landmarks_list.append(landmarks_decoded[i] * [ratio_width, ratio_height])
+        
+        return bboxes_list, scores_list, landmarks_list
     
     @lru_cache(maxsize=100)
     def _create_anchors(self, feature_stride: int, anchor_total: int, 
@@ -333,25 +477,39 @@ class FaceDetector:
             return None
 
 
-# Global detector instance
-_detector_instance = None
+# Global detector instances - one per model
+_detector_instances = {}
 
 
-def get_face_detector() -> FaceDetector:
-    """Get global face detector instance."""
-    global _detector_instance
-    if _detector_instance is None:
-        _detector_instance = FaceDetector()
-    return _detector_instance
+def get_face_detector(detector_model: str = 'scrfd') -> FaceDetector:
+    """Get global face detector instance for the specified model."""
+    global _detector_instances
+    
+    # Map user-friendly names to actual model names
+    model_mapping = {
+        'scrfd': 'scrfd_2.5g',
+        'retinaface': 'retinaface_10g',
+        'yolo_face': 'yoloface_8n',
+        'yunet': 'yunet_2023_mar',
+        'many': 'scrfd_2.5g'  # 'many' uses scrfd as primary, can be enhanced later
+    }
+    
+    actual_model = model_mapping.get(detector_model, 'scrfd_2.5g')
+    
+    if actual_model not in _detector_instances:
+        _detector_instances[actual_model] = FaceDetector(detector_model=actual_model)
+    
+    return _detector_instances[actual_model]
 
 
 def detect_faces(
     image: VisionFrame,
     score_threshold: float = 0.3,
-    sort_order: str = 'large-small'
+    sort_order: str = 'large-small',
+    detector_model: str = 'scrfd'
 ) -> List[Face]:
     """Detect and sort faces in an image."""
-    detector = get_face_detector()
+    detector = get_face_detector(detector_model)
     faces = detector.detect_faces(image, score_threshold)
     return sort_faces_by_order(faces, sort_order)
 

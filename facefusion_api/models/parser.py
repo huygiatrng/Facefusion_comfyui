@@ -123,3 +123,6 @@ def get_face_parser(model_name: str = 'bisenet_resnet_34') -> Optional[FaceParse
         _parser_instances[model_name] = FaceParser(model_name)
     return _parser_instances[model_name]
 
+
+
+

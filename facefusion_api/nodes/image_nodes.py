@@ -29,6 +29,13 @@ class SwapFaceImage:
 					{
 						'default': 'hyperswap_1c_256'
 					}
+				),
+				'face_detector_model':
+				(
+					['scrfd', 'retinaface', 'yolo_face', 'yunet', 'many'],
+					{
+						'default': 'scrfd'
+					}
 				)
 			}
 		}
@@ -38,7 +45,7 @@ class SwapFaceImage:
 	CATEGORY = 'FaceFusion API'
 
 	@staticmethod
-	def process(source_images : Tensor, target_image : Tensor, api_token : str, face_swapper_model : FaceSwapperModel) -> Tuple[Tensor]:
+	def process(source_images : Tensor, target_image : Tensor, api_token : str, face_swapper_model : FaceSwapperModel, face_detector_model: str) -> Tuple[Tensor]:
 		# Smart batch processing - handle any input format
 		# Use first source image (or average multiple sources in future)
 		if source_images.dim() == 4 and source_images.shape[0] > 1:
@@ -53,18 +60,18 @@ class SwapFaceImage:
 			output_images = []
 			for i in range(target_image.shape[0]):
 				single_target = target_image[i:i+1]
-				swapped = SwapFaceImage.swap_face(source_image, single_target, api_token, face_swapper_model, '512x512', 0.3)
+				swapped = SwapFaceImage.swap_face(source_image, single_target, api_token, face_swapper_model, '512x512', 0.3, face_detector_model=face_detector_model)
 				output_images.append(swapped)
 			# Stack all results back into batch
 			output_tensor = torch.cat(output_images, dim=0)
 		else:
 			# Single image processing
-			output_tensor = SwapFaceImage.swap_face(source_image, target_image, api_token, face_swapper_model, '512x512', 0.3)
+			output_tensor = SwapFaceImage.swap_face(source_image, target_image, api_token, face_swapper_model, '512x512', 0.3, face_detector_model=face_detector_model)
 		
 		return (output_tensor,)
 
 	@staticmethod
-	def swap_face(source_tensor : Tensor, target_tensor : Tensor, api_token : str, face_swapper_model : FaceSwapperModel, pixel_boost: str = '512x512', face_mask_blur: float = 0.3, face_occluder_model: Optional[str] = None, face_parser_model: Optional[str] = None, face_selector_mode: str = 'one', face_position: int = 0, sort_order: str = 'large-small', score_threshold: float = 0.3) -> Tensor:
+	def swap_face(source_tensor : Tensor, target_tensor : Tensor, api_token : str, face_swapper_model : FaceSwapperModel, pixel_boost: str = '512x512', face_mask_blur: float = 0.3, face_occluder_model: Optional[str] = None, face_parser_model: Optional[str] = None, face_selector_mode: str = 'one', face_position: int = 0, sort_order: str = 'large-small', score_threshold: float = 0.3, face_detector_model: str = 'scrfd') -> Tensor:
 		# Check if using local inference
 		if api_token == '-1':
 			# print("[SwapFaceImage] Using local inference")
@@ -95,7 +102,8 @@ class SwapFaceImage:
 					sort_order=sort_order,
 					score_threshold=score_threshold,
 					face_occluder_model=face_occluder_model,
-					face_parser_model=face_parser_model
+					face_parser_model=face_parser_model,
+					face_detector_model=face_detector_model
 				)
 				
 				# Convert back to tensor
@@ -169,6 +177,13 @@ class AdvancedSwapFaceImage:
 					],
 					{
 						'default': 'hyperswap_1c_256'
+					}
+				),
+				'face_detector_model':
+				(
+					['scrfd', 'retinaface', 'yolo_face', 'yunet', 'many'],
+					{
+						'default': 'scrfd'
 					}
 				),
 				'pixel_boost':
@@ -262,6 +277,7 @@ class AdvancedSwapFaceImage:
 		target_image: Tensor,
 		api_token: str,
 		face_swapper_model: FaceSwapperModel,
+		face_detector_model: str,
 		pixel_boost: str,
 		face_occluder_model: str,
 		face_parser_model: str,
@@ -304,7 +320,8 @@ class AdvancedSwapFaceImage:
 					face_selector_mode,
 					face_position,
 					sort_order,
-					score_threshold
+					score_threshold,
+					face_detector_model
 				)
 				output_images.append(swapped)
 			
@@ -324,7 +341,8 @@ class AdvancedSwapFaceImage:
 				face_selector_mode,
 				face_position,
 				sort_order,
-				score_threshold
+				score_threshold,
+				face_detector_model
 			)
 		
 		return (output_tensor,)

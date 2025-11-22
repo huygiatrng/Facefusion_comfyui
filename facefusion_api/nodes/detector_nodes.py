@@ -103,16 +103,11 @@ class FaceDetectorNode:
 			# Convert tensor to OpenCV format
 			cv2_image = tensor_to_cv2(single_image)
 			
-			# Note: face_detector_model selection will be implemented when multi-model support is added
-			# Currently only SCRFD is implemented
-			if face_detector_model != 'scrfd':
-				print(f"[FaceDetectorNode] Warning: Only 'scrfd' is currently implemented. Using SCRFD.")
-			
-			# Detect faces with sorting
-			faces = detect_faces(cv2_image, score_threshold, sort_order)
+			# Detect faces with sorting and specified detector model
+			faces = detect_faces(cv2_image, score_threshold, sort_order, face_detector_model)
 			
 			if not faces:
-				print("No faces detected in image")
+				# print("No faces detected in image")
 				# Return serializable data
 				return ({'faces': [], 'image': single_image, 'num_faces': 0},)
 			

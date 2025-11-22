@@ -2,6 +2,7 @@
 Video Nodes for ComfyUI.
 """
 from .base import *
+from .image_nodes import SwapFaceImage
 
 class SwapFaceVideo:
 	@classmethod
@@ -30,6 +31,13 @@ class SwapFaceVideo:
 						'default': 'hyperswap_1a_256'
 					}
 				),
+				'face_detector_model':
+				(
+					['scrfd', 'retinaface', 'yolo_face', 'yunet', 'many'],
+					{
+						'default': 'scrfd'
+					}
+				),
 				'max_workers':
 				(
 					'INT',
@@ -47,7 +55,7 @@ class SwapFaceVideo:
 	CATEGORY = 'FaceFusion API'
 
 	@staticmethod
-	def process(source_images : Tensor, target_video : VideoFromComponents, api_token : str, face_swapper_model : FaceSwapperModel, max_workers : int) -> Tuple[VideoFromComponents]:
+	def process(source_images : Tensor, target_video : VideoFromComponents, api_token : str, face_swapper_model : FaceSwapperModel, face_detector_model: str, max_workers : int) -> Tuple[VideoFromComponents]:
 		try:
 			# Handle multiple source images by taking the first one
 			if source_images.dim() == 4 and source_images.shape[0] > 1:
@@ -126,7 +134,8 @@ class SwapFaceVideo:
 				SwapFaceImage.swap_face,
 				source_image,
 				api_token = api_token,
-				face_swapper_model = face_swapper_model
+				face_swapper_model = face_swapper_model,
+				face_detector_model = face_detector_model
 			)
 
 			with ThreadPoolExecutor(max_workers = max_workers) as executor:
@@ -184,6 +193,13 @@ class AdvancedSwapFaceVideo:
 					],
 					{
 						'default': 'hyperswap_1a_256'
+					}
+				),
+				'face_detector_model':
+				(
+					['scrfd', 'retinaface', 'yolo_face', 'yunet', 'many'],
+					{
+						'default': 'scrfd'
 					}
 				),
 				'pixel_boost':
@@ -286,6 +302,7 @@ class AdvancedSwapFaceVideo:
 		target_video: VideoFromComponents,
 		api_token: str,
 		face_swapper_model: FaceSwapperModel,
+		face_detector_model: str,
 		pixel_boost: str,
 		face_occluder_model: str,
 		face_parser_model: str,
@@ -384,7 +401,8 @@ class AdvancedSwapFaceVideo:
 				face_selector_mode = face_selector_mode,
 				face_position = face_position,
 				sort_order = sort_order,
-				score_threshold = score_threshold
+				score_threshold = score_threshold,
+				face_detector_model = face_detector_model
 			)
 
 			with ThreadPoolExecutor(max_workers = max_workers) as executor:

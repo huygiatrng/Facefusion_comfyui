@@ -19,7 +19,8 @@ def swap_faces_local(
     sort_order: str = 'large-small',
     score_threshold: float = 0.3,
     face_occluder_model: Optional[str] = None,
-    face_parser_model: Optional[str] = None
+    face_parser_model: Optional[str] = None,
+    face_detector_model: str = 'scrfd'
 ) -> VisionFrame:
     """
     Swap faces locally using ONNX models.
@@ -36,6 +37,7 @@ def swap_faces_local(
         score_threshold: Minimum detection confidence
         face_occluder_model: Face occluder model to use (xseg_1, xseg_2, xseg_3) for masking occlusions
         face_parser_model: Face parser model to use (bisenet_resnet_18, bisenet_resnet_34) for region segmentation
+        face_detector_model: Face detector model to use (scrfd, retinaface, yolo_face, yunet, many)
     
     Returns:
         Image with swapped faces
@@ -43,15 +45,15 @@ def swap_faces_local(
     # print(f"[LocalSwap] Starting local face swap with model: {model_name}")
     
     # Detect faces in source and target
-    source_faces = detect_faces(source_image, score_threshold, sort_order)
-    target_faces = detect_faces(target_image, score_threshold, sort_order)
+    source_faces = detect_faces(source_image, score_threshold, sort_order, face_detector_model)
+    target_faces = detect_faces(target_image, score_threshold, sort_order, face_detector_model)
     
     if not source_faces:
-        print("[LocalSwap] No faces detected in source image")
+        # print("[LocalSwap] No faces detected in source image")
         return target_image
     
     if not target_faces:
-        print("[LocalSwap] No faces detected in target image")
+        # print("[LocalSwap] No faces detected in target image")
         return target_image
     
     # Select source face

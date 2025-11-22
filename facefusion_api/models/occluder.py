@@ -96,3 +96,6 @@ def get_face_occluder(model_name: str = 'xseg_1') -> Optional[FaceOccluder]:
         _occluder_instances[model_name] = FaceOccluder(model_name)
     return _occluder_instances[model_name]
 
+
+
+
