@@ -1,4 +1,5 @@
 httpx
 httpx-retries
 opencv-python
-onnxruntime
+onnx
+onnxruntime-gpu
