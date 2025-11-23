@@ -1,7 +1,7 @@
 [project]
 name = "facefusion_comfyui"
 description = "Facefusion ComfyUI - Unofficial"
-version = "1.0.13"
+version = "1.1.0"
 license = {file = "LICENSE"} 
 # classifiers = [
 #     # For OS-independent nodes (works on all operating systems)
