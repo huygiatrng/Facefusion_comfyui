@@ -5,7 +5,7 @@ import numpy as np
 
 # Model URLs from facefusion assets
 MODEL_URLS = {
-    # Swapper models - HyperSwap (FaceFusion proprietary)
+    # Swapper models - HyperSwap
     'hyperswap_1a_256': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.3.0/hyperswap_1a_256.onnx',
     'hyperswap_1b_256': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.3.0/hyperswap_1b_256.onnx',
     'hyperswap_1c_256': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.3.0/hyperswap_1c_256.onnx',
