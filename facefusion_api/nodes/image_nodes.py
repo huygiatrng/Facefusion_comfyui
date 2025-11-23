@@ -24,7 +24,17 @@ class SwapFaceImage:
 					[
 						'hyperswap_1a_256',
 						'hyperswap_1b_256',
-						'hyperswap_1c_256'
+						'hyperswap_1c_256',
+						'ghost_1_256',
+						'ghost_2_256',
+						'ghost_3_256',
+						'hififace_unofficial_256',
+						'inswapper_128',
+						'inswapper_128_fp16',
+						'blendswap_256',
+						'simswap_256',
+						'simswap_unofficial_512',
+						'uniface_256'
 					],
 					{
 						'default': 'hyperswap_1c_256'
@@ -173,7 +183,17 @@ class AdvancedSwapFaceImage:
 					[
 						'hyperswap_1a_256',
 						'hyperswap_1b_256',
-						'hyperswap_1c_256'
+						'hyperswap_1c_256',
+						'ghost_1_256',
+						'ghost_2_256',
+						'ghost_3_256',
+						'hififace_unofficial_256',
+						'inswapper_128',
+						'inswapper_128_fp16',
+						'blendswap_256',
+						'simswap_256',
+						'simswap_unofficial_512',
+						'uniface_256'
 					],
 					{
 						'default': 'hyperswap_1c_256'

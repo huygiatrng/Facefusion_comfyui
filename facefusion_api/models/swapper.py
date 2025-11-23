@@ -7,6 +7,8 @@ from typing import Optional, Tuple, TYPE_CHECKING
 import cv2
 import numpy as np
 import onnxruntime as ort
+import onnx
+from onnx import numpy_helper
 from numpy.typing import NDArray
 
 from ..utils import VisionFrame, Face, get_model_path, ensure_model_exists, implode_pixel_boost, explode_pixel_boost
@@ -23,10 +25,13 @@ class LocalFaceSwapper:
     def __init__(self, model_name: str = 'hyperswap_1c_256'):
         self.model_name = model_name
         self.model_session = None
+        self.embedding_converter_session = None
+        self.model_initializer = None
         self.model_config = MODEL_CONFIGS.get(model_name, MODEL_CONFIGS['hyperswap_1c_256'])
+        self.model_initializer = None
         
     def initialize(self) -> bool:
-        """Initialize the face swapper model."""
+        """Initialize the face swapper model and embedding converter if needed."""
         try:
             model_path = get_model_path(f'{self.model_name}.onnx')
             
@@ -45,6 +50,28 @@ class LocalFaceSwapper:
             providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
             self.model_session = ort.InferenceSession(model_path, providers=providers)
             
+            # Load model_initializer for inswapper models
+            model_type = self.model_config.get('type')
+            if model_type == 'inswapper':
+                import onnx
+                model = onnx.load(model_path)
+                self.model_initializer = onnx.numpy_helper.to_array(model.graph.initializer[-1])
+                print(f"[LocalFaceSwapper] Loaded model_initializer for inswapper: shape={self.model_initializer.shape}")
+            
+            # Load embedding converter for models that need it
+            converter_name = self.model_config.get('converter')
+            if converter_name:
+                converter_path = get_model_path(f'{converter_name}.onnx')
+                if not os.path.exists(converter_path):
+                    print(f"[LocalFaceSwapper] Downloading embedding converter: {converter_name}")
+                    converter_url = MODEL_URLS.get(converter_name)
+                    if converter_url and ensure_model_exists(f'{converter_name}.onnx', converter_url):
+                        self.embedding_converter_session = ort.InferenceSession(converter_path, providers=providers)
+                        print(f"[LocalFaceSwapper] Loaded embedding converter: {converter_name}")
+                else:
+                    self.embedding_converter_session = ort.InferenceSession(converter_path, providers=providers)
+                    print(f"[LocalFaceSwapper] Loaded embedding converter: {converter_name}")
+            
             # print(f"[LocalFaceSwapper] Model {self.model_name} loaded successfully")
             print(f"[LocalFaceSwapper] Running on: {self.model_session.get_providers()[0]}")
             return True
@@ -62,7 +89,8 @@ class LocalFaceSwapper:
         pixel_boost: str = '512x512',
         face_mask_blur: float = 0.3,
         face_occluder: Optional['FaceOccluder'] = None,
-        face_parser: Optional['FaceParser'] = None
+        face_parser: Optional['FaceParser'] = None,
+        source_image: Optional[VisionFrame] = None
     ) -> VisionFrame:
         """Swap a single face in the target image."""
         if self.model_session is None:
@@ -81,6 +109,10 @@ class LocalFaceSwapper:
             
             # Calculate pixel boost factor
             pixel_boost_total = pixel_boost_size[0] // model_size[0]
+            
+            # Prepare source frame for models that need it (blendswap, uniface)
+            if model_type in ['blendswap', 'uniface'] and source_image is not None:
+                source_face['source_frame'] = self._prepare_source_frame(source_image, source_face, model_type)
             
             # print(f"[LocalFaceSwapper] Swapping face with pixel_boost={pixel_boost} (factor={pixel_boost_total}x), blur={face_mask_blur}")
             
@@ -121,14 +153,12 @@ class LocalFaceSwapper:
             for patch in crop_patches:
                 # Prepare inputs
                 patch_prepared = self._prepare_crop_frame(patch)
-                source_embedding = source_face.get('embedding')
                 
-                if source_embedding is None:
-                    print("[LocalFaceSwapper] Warning: No source embedding, using target")
-                    source_embedding = target_face.get('embedding')
+                # Prepare source embedding based on model type
+                source_embedding = self._prepare_source_embedding(source_face, target_face, model_type)
                 
                 # Run inference
-                swapped_patch = self._forward_swap(patch_prepared, source_embedding, model_type)
+                swapped_patch = self._forward_swap(patch_prepared, source_embedding, model_type, source_face)
                 swapped_patch = self._normalize_crop_frame(swapped_patch)
                 swapped_patches.append(swapped_patch)
             
@@ -209,10 +239,16 @@ class LocalFaceSwapper:
         return warped, affine_matrix
     
     def _prepare_crop_frame(self, frame: VisionFrame) -> NDArray:
-        """Prepare crop frame for model input."""
-        # Convert BGR to RGB and normalize to [-1, 1]
+        """Prepare crop frame for model input with model-specific normalization (matches facefusion)."""
+        # Convert BGR to RGB 
         prepared = frame[:, :, ::-1].astype(np.float32) / 255.0
-        prepared = (prepared - 0.5) / 0.5  # Scale to [-1, 1]
+        
+        # Get model-specific normalization parameters
+        mean = np.array(self.model_config.get('mean', [0.5, 0.5, 0.5]), dtype=np.float32)
+        std = np.array(self.model_config.get('std', [0.5, 0.5, 0.5]), dtype=np.float32)
+        
+        # Apply normalization: (x - mean) / std
+        prepared = (prepared - mean) / std
         
         # Transpose to CHW format and add batch dimension
         prepared = prepared.transpose(2, 0, 1)
@@ -220,14 +256,132 @@ class LocalFaceSwapper:
         
         return prepared
     
+    def _prepare_source_embedding(self, source_face: Face, target_face: Face, model_type: str) -> Optional[NDArray]:
+        """Prepare source embedding based on model type - matches facefusion implementation."""
+        embedding = source_face.get('embedding')  # Raw embedding (NOT normalized)
+        embedding_norm = source_face.get('embedding_norm')  # Normalized embedding
+        
+        if embedding is None:
+            print(f"[LocalFaceSwapper] Warning: No source embedding")
+            return None
+        
+        # Different models need different embedding formats
+        if model_type == 'hyperswap':
+            # HyperSwap uses normalized embedding directly (embedding_norm)
+            if embedding_norm is not None:
+                source_embedding = embedding_norm.reshape((1, -1))
+            else:
+                source_embedding = (embedding / np.linalg.norm(embedding)).reshape((1, -1))
+        
+        elif model_type == 'inswapper':
+            # InSwapper uses model_initializer transformation on RAW embedding
+            if self.model_initializer is not None:
+                source_embedding = embedding.reshape((1, -1))
+                source_embedding = np.dot(source_embedding, self.model_initializer) / np.linalg.norm(source_embedding)
+            else:
+                print("[LocalFaceSwapper] Warning: No model_initializer for inswapper")
+                source_embedding = embedding.reshape((1, -1))
+        
+        elif model_type == 'ghost':
+            # Ghost uses RAW embedding, converts it, returns converted (NOT normalized)
+            if self.embedding_converter_session is not None:
+                source_embedding_reshaped = embedding.reshape(-1, 512).astype(np.float32)
+                outputs = self.embedding_converter_session.run(None, {'input': source_embedding_reshaped})
+                converted_embedding = outputs[0].ravel()
+                # Ghost uses converted embedding WITHOUT normalization
+                source_embedding = converted_embedding.reshape((1, -1))
+            else:
+                print(f"[LocalFaceSwapper] Warning: No embedding converter for ghost")
+                source_embedding = embedding.reshape((1, -1))
+        
+        elif model_type in ['hififace', 'simswap']:
+            # SimSwap/HifiFace use RAW embedding, convert it, return normalized
+            if self.embedding_converter_session is not None:
+                source_embedding_reshaped = embedding.reshape(-1, 512).astype(np.float32)
+                outputs = self.embedding_converter_session.run(None, {'input': source_embedding_reshaped})
+                converted_embedding = outputs[0].ravel()
+                # SimSwap/HifiFace use converted embedding WITH normalization
+                source_embedding_norm = converted_embedding / np.linalg.norm(converted_embedding)
+                source_embedding = source_embedding_norm.reshape((1, -1))
+            else:
+                print(f"[LocalFaceSwapper] Warning: No embedding converter for {model_type}")
+                source_embedding = (embedding / np.linalg.norm(embedding)).reshape((1, -1))
+        
+        else:
+            # Default: use normalized embedding (blendswap, uniface, etc.)
+            if embedding_norm is not None:
+                source_embedding = embedding_norm.reshape((1, -1))
+            else:
+                source_embedding = (embedding / np.linalg.norm(embedding)).reshape((1, -1))
+        
+        return source_embedding.astype(np.float32)
+    
+    def _prepare_source_frame(self, source_image: VisionFrame, source_face: Face, model_type: str) -> NDArray:
+        """Prepare source frame for blendswap/uniface models."""
+        # Get warp template and size based on model type
+        if model_type == 'blendswap':
+            template_name = 'arcface_112_v2'
+            size = (112, 112)
+        elif model_type == 'uniface':
+            template_name = 'ffhq_512'
+            size = (256, 256)
+        else:
+            return None
+        
+        # Warp source face
+        warped_source, _ = self._warp_face(
+            source_image,
+            source_face['landmarks'],
+            template_name,
+            size
+        )
+        
+        # Convert to model input format (same as prepare_crop_frame but for source)
+        prepared = warped_source[:, :, ::-1].astype(np.float32) / 255.0
+        prepared = prepared.transpose(2, 0, 1)
+        prepared = np.expand_dims(prepared, 0)
+        
+        return prepared
+
+    def _get_model_initializer(self) -> Optional[NDArray]:
+        """Load initializer matrix from ONNX model (needed for inswapper)."""
+        if self.model_initializer is not None:
+            return self.model_initializer
+        
+        try:
+            model_path = get_model_path(f'{self.model_name}.onnx')
+            if not os.path.exists(model_path):
+                return None
+            model = onnx.load(model_path)
+            if not model.graph.initializer:
+                return None
+            # Use last initializer (matches facefusion implementation)
+            self.model_initializer = numpy_helper.to_array(model.graph.initializer[-1])
+        except Exception as e:
+            print(f"[LocalFaceSwapper] Warning: Unable to load model initializer: {e}")
+            self.model_initializer = None
+        
+        return self.model_initializer
+    
     def _normalize_crop_frame(self, frame: NDArray) -> VisionFrame:
-        """Normalize model output back to image format."""
+        """Normalize model output back to image format with model-specific denormalization (matches facefusion)."""
         # Remove batch dimension and transpose to HWC
         frame = frame.transpose(1, 2, 0)
         
-        # Denormalize from [-1, 1] to [0, 255]
-        frame = (frame * 0.5 + 0.5) * 255.0
-        frame = np.clip(frame, 0, 255).astype(np.uint8)
+        model_type = self.model_config.get('type', 'hyperswap')
+        
+        # Only certain models need reverse normalization
+        # simswap, inswapper, blendswap do NOT get reverse normalization
+        if model_type in ['ghost', 'hififace', 'hyperswap', 'uniface']:
+            # Apply reverse normalization: x * std + mean
+            mean = np.array(self.model_config.get('mean', [0.5, 0.5, 0.5]), dtype=np.float32)
+            std = np.array(self.model_config.get('std', [0.5, 0.5, 0.5]), dtype=np.float32)
+            frame = frame * std + mean
+        
+        # Clip to [0, 1] and scale to [0, 255]
+        frame = np.clip(frame, 0, 1)
+        frame = frame * 255.0
+        frame = frame.astype(np.uint8)
         
         # Convert RGB to BGR
         frame = frame[:, :, ::-1]
@@ -238,7 +392,8 @@ class LocalFaceSwapper:
         self,
         target_frame: NDArray,
         source_embedding: Optional[NDArray],
-        model_type: str
+        model_type: str,
+        source_face: Optional[Face] = None
     ) -> NDArray:
         """Run forward pass through the swapper model."""
         inputs = {}
@@ -248,14 +403,26 @@ class LocalFaceSwapper:
             if model_input.name == 'target':
                 inputs['target'] = target_frame
             elif model_input.name == 'source':
-                if source_embedding is not None:
-                    # Reshape embedding for model
-                    if len(source_embedding.shape) == 1:
-                        source_embedding = np.expand_dims(source_embedding, 0)
-                    inputs['source'] = source_embedding.astype(np.float32)
+                # Different models need different source formats
+                if model_type in ['blendswap', 'uniface']:
+                    # These models need a warped source face image, not embedding
+                    if source_face is not None and 'source_frame' in source_face:
+                        # Use pre-prepared source frame
+                        inputs['source'] = source_face['source_frame']
+                    else:
+                        # Fallback: use zero frame
+                        print(f"[LocalFaceSwapper] Warning: {model_type} needs source_frame, using fallback")
+                        inputs['source'] = np.zeros((1, 3, 112, 112), dtype=np.float32)
                 else:
-                    # Use zero embedding as fallback
-                    inputs['source'] = np.zeros((1, 512), dtype=np.float32)
+                    # Other models use embeddings
+                    if source_embedding is not None:
+                        # Reshape embedding for model
+                        if len(source_embedding.shape) == 1:
+                            source_embedding = np.expand_dims(source_embedding, 0)
+                        inputs['source'] = source_embedding.astype(np.float32)
+                    else:
+                        # Use zero embedding as fallback
+                        inputs['source'] = np.zeros((1, 512), dtype=np.float32)
         
         # Run inference
         outputs = self.model_session.run(None, inputs)

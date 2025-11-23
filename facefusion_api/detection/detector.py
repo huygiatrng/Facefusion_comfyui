@@ -106,10 +106,12 @@ class FaceDetector:
             faces = []
             for bbox, score, landmark in zip(bboxes, scores, landmarks):
                 face = create_face_dict(bbox, landmark, score)
-                # Get embedding
-                embedding = self._get_face_embedding(image, face)
-                if embedding is not None:
+                # Get embedding (raw + normalized)
+                embeddings = self._get_face_embedding(image, face)
+                if embeddings is not None:
+                    embedding, embedding_norm = embeddings
                     face['embedding'] = embedding
+                    face['embedding_norm'] = embedding_norm
                 faces.append(face)
             
             return faces
@@ -417,7 +419,7 @@ class FaceDetector:
         
         return keep
     
-    def _get_face_embedding(self, image: VisionFrame, face: Face) -> Optional[NDArray]:
+    def _get_face_embedding(self, image: VisionFrame, face: Face) -> Optional[Tuple[NDArray, NDArray]]:
         """Extract face embedding for recognition."""
         if self.recognition_session is None:
             return None
@@ -439,9 +441,9 @@ class FaceDetector:
             outputs = self.recognition_session.run(None, {'input': input_face})
             
             embedding = outputs[0].flatten()
-            embedding = embedding / np.linalg.norm(embedding)
+            embedding_norm = embedding / np.linalg.norm(embedding)
             
-            return embedding
+            return embedding, embedding_norm
         except Exception as e:
             print(f"Error extracting embedding: {e}")
             return None

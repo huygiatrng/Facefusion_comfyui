@@ -79,13 +79,13 @@ def swap_faces_local(
         for i, target_face in enumerate(target_faces):
             # print(f"[LocalSwap] Swapping face {i+1}/{len(target_faces)}")
             result = swapper.swap_face(source_face, target_face, result, pixel_boost, face_mask_blur, 
-                                      occluder, parser)
+                                      occluder, parser, source_image)
     else:
         # Swap one face
         target_face = target_faces[min(face_position, len(target_faces) - 1)]
         # print(f"[LocalSwap] Swapping target face at position {face_position}")
         result = swapper.swap_face(source_face, target_face, result, pixel_boost, face_mask_blur,
-                                   occluder, parser)
+                                   occluder, parser, source_image)
     
     # print("[LocalSwap] Face swap completed")
     return result

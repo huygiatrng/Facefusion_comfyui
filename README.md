@@ -53,9 +53,16 @@ First run downloads models (~200MB), then everything runs locally.
 - `your_token` = API mode (requires internet)
 
 ### face_swapper_model
+**13 models available** - All auto-download on first use:
 - `hyperswap_1c_256` ⭐ Recommended - best quality/speed
-- `inswapper_128_fp16` - Fastest for RTX GPUs
-- `simswap_unofficial_512` - Highest quality
+- `hyperswap_1a_256`, `hyperswap_1b_256` - HyperSwap variants
+- `ghost_1_256`, `ghost_2_256`, `ghost_3_256` - Apache-2.0 license (commercial OK)
+- `hififace_unofficial_256` - High fidelity faces
+- `inswapper_128_fp16` ⚡ Fastest for RTX GPUs
+- `inswapper_128` - Standard InsightFace
+- `blendswap_256` - Good blending quality
+- `simswap_256`, `simswap_unofficial_512` - SimSwap variants
+- `uniface_256` - Uniform face handling
 
 ### pixel_boost
 - `256x256` - Fast, basic quality
