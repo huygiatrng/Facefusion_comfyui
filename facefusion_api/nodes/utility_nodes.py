@@ -2,6 +2,7 @@
 Utility Nodes for ComfyUI.
 """
 from .base import *
+from .image_nodes import SwapFaceImage
 
 class PixelBoostNode:
 	"""Node for setting pixel boost resolution (for local face swapping)."""

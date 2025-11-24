@@ -129,3 +129,5 @@ def get_face_parser(model_name: str = 'bisenet_resnet_34') -> Optional[FaceParse
 
 
 
+
+
