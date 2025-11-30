@@ -74,6 +74,50 @@ First run downloads models (~200MB), then everything runs locally.
 - `0.0-1.0` - Controls edge blending
 - `0.3` ⭐ Default - natural blending
 
+### Face Mask Types (Multi-Select)
+
+You can enable **multiple mask types** at once! Masks are combined to create precise face boundaries.
+
+| Mask Type | Option | Description |
+|-----------|--------|-------------|
+| **Box** | `use_box_mask` ✅ | Rectangular mask with blur around face edges (default ON) |
+| **Occlusion** | `use_occlusion_mask` | Detects occlusions (hands, hair, objects covering face) - requires `face_occluder_model` |
+| **Area** | `use_area_mask` | Masks specific face areas using landmarks |
+| **Region** | `use_region_mask` | Semantic segmentation of face parts - requires `face_parser_model` |
+
+#### face_mask_areas (for Area mask)
+Comma-separated list of areas:
+- `upper-face` - Forehead and upper face
+- `lower-face` - Chin and jaw area  
+- `mouth` - Mouth region only
+- Example: `upper-face,lower-face,mouth` (default - full face)
+
+#### face_mask_regions (for Region mask)
+Comma-separated list of regions:
+- `skin` - Face skin only
+- `left-eyebrow`, `right-eyebrow` - Eyebrows
+- `left-eye`, `right-eye` - Eyes
+- `glasses` - Glasses area
+- `nose` - Nose
+- `mouth` - Mouth area
+- `upper-lip`, `lower-lip` - Lips
+- Example: `skin,nose,mouth,upper-lip,lower-lip` (default)
+
+#### face_mask_padding
+Edge padding for box mask: `top,right,bottom,left`
+- Example: `5,5,5,5` - 5% padding on all sides
+- Default: `0,0,0,0`
+
+#### Recommended Mask Combinations
+
+| Use Case | Masks | Notes |
+|----------|-------|-------|
+| **Standard swap** | Box only ✅ | Fast, good for most cases |
+| **Hands/objects near face** | Box + Occlusion | Preserves hands covering face |
+| **Precise face boundary** | Box + Region | Better edge handling with hair |
+| **Mouth preservation** | Box + Region (`skin,nose`) | Keeps original mouth |
+| **Full quality** | Box + Occlusion + Region | Best quality, slower |
+
 ### face_selector_mode
 - `one` - Single face (use face_position to select)
 - `many` - All detected faces
@@ -193,6 +237,12 @@ Face detection: scrfd_2.5g (~3MB), arcface_w600k_r50 (~166MB)
 - **Match angles** - Source and target faces should face similar directions
 - **Batch processing** - Feed multiple images at once, get all results automatically
 - **Use Load Image Batch** - Perfect for processing folders of images
+
+### Mask Selection Tips
+- **Hands near face?** → Enable `use_occlusion_mask` with `face_occluder_model: xseg_1`
+- **Hair blending issues?** → Enable `use_region_mask` with `face_parser_model: bisenet_resnet_34`
+- **Want original mouth?** → Use Region mask with `face_mask_regions: skin,nose,left-eye,right-eye`
+- **Processing speed priority?** → Use only Box mask (default)
 
 ---
 
