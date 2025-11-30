@@ -16,7 +16,6 @@ from .models import (
 )
 from .swap_local import swap_faces_local
 
-# Export everything for backward compatibility
 __all__ = [
     'MODEL_URLS',
     'MODEL_CONFIGS',
