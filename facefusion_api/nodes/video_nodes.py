@@ -286,6 +286,58 @@ class AdvancedSwapFaceVideo:
 						'step': 0.05
 					}
 				),
+				'use_box_mask':
+				(
+					'BOOLEAN',
+					{
+						'default': True
+					}
+				),
+				'use_occlusion_mask':
+				(
+					'BOOLEAN',
+					{
+						'default': False
+					}
+				),
+				'use_area_mask':
+				(
+					'BOOLEAN',
+					{
+						'default': False
+					}
+				),
+				'use_region_mask':
+				(
+					'BOOLEAN',
+					{
+						'default': False
+					}
+				),
+				'face_mask_areas':
+				(
+					'STRING',
+					{
+						'default': 'upper-face,lower-face,mouth',
+						'multiline': False
+					}
+				),
+				'face_mask_regions':
+				(
+					'STRING',
+					{
+						'default': 'skin,nose,mouth,upper-lip,lower-lip',
+						'multiline': False
+					}
+				),
+				'face_mask_padding':
+				(
+					'STRING',
+					{
+						'default': '0,0,0,0',
+						'multiline': False
+					}
+				),
 				'max_workers':
 				(
 					'INT',
@@ -331,11 +383,41 @@ class AdvancedSwapFaceVideo:
 		face_position: int,
 		sort_order: str,
 		score_threshold: float,
-		max_workers: int,
+		use_box_mask: bool = True,
+		use_occlusion_mask: bool = False,
+		use_area_mask: bool = False,
+		use_region_mask: bool = False,
+		face_mask_areas: str = 'upper-face,lower-face,mouth',
+		face_mask_regions: str = 'skin,nose,mouth,upper-lip,lower-lip',
+		face_mask_padding: str = '0,0,0,0',
+		max_workers: int = 16,
 		reference_image: Optional[Tensor] = None,
 		reference_face_distance: float = 0.6
 	) -> Tuple[VideoFromComponents]:
 		"""Process video face swapping with advanced selection."""
+		# Build face_mask_types list based on boolean options
+		face_mask_types = []
+		if use_box_mask:
+			face_mask_types.append('box')
+		if use_occlusion_mask:
+			face_mask_types.append('occlusion')
+		if use_area_mask:
+			face_mask_types.append('area')
+		if use_region_mask:
+			face_mask_types.append('region')
+		
+		# Parse mask areas and regions from comma-separated strings
+		mask_areas = [a.strip() for a in face_mask_areas.split(',') if a.strip()]
+		mask_regions = [r.strip() for r in face_mask_regions.split(',') if r.strip()]
+		
+		# Parse padding (top, right, bottom, left)
+		try:
+			padding = tuple(int(p.strip()) for p in face_mask_padding.split(','))
+			if len(padding) != 4:
+				padding = (0, 0, 0, 0)
+		except:
+			padding = (0, 0, 0, 0)
+		
 		try:
 			# Handle multiple source images
 			if source_images.dim() == 4 and source_images.shape[0] > 1:
@@ -422,7 +504,11 @@ class AdvancedSwapFaceVideo:
 				face_position = face_position,
 				sort_order = sort_order,
 				score_threshold = score_threshold,
-				face_detector_model = face_detector_model
+				face_detector_model = face_detector_model,
+				face_mask_types = face_mask_types,
+				face_mask_areas = mask_areas,
+				face_mask_regions = mask_regions,
+				face_mask_padding = padding
 			)
 
 			with ThreadPoolExecutor(max_workers = max_workers) as executor:

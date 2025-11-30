@@ -48,6 +48,7 @@ models/**/*.bin
 *.tmp
 *.log
 *.cache
+.install_complete
 
 # OS
 .DS_Store

@@ -120,8 +120,25 @@ WARP_TEMPLATES = {
     ], dtype=np.float32),
 }
 
+# Face mask area set - landmarks indices for each area (from facefusion-master)
+FACE_MASK_AREA_SET = {
+    'upper-face': [0, 1, 2, 31, 32, 33, 34, 35, 14, 15, 16, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17],
+    'lower-face': [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 35, 34, 33, 32, 31],
+    'mouth': [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67]
+}
 
-
-
+# Face mask region set - parser output channel indices for each region (from facefusion-master)
+FACE_MASK_REGION_SET = {
+    'skin': 1,
+    'left-eyebrow': 2,
+    'right-eyebrow': 3,
+    'left-eye': 4,
+    'right-eye': 5,
+    'glasses': 6,
+    'nose': 10,
+    'mouth': 11,
+    'upper-lip': 12,
+    'lower-lip': 13
+}
 
 

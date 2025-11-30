@@ -2,7 +2,7 @@
 Face parser (bisenet) for segmenting face regions.
 """
 import os
-from typing import Optional, List
+from typing import Optional, List, Union
 
 import cv2
 import numpy as np
@@ -10,7 +10,7 @@ import onnxruntime as ort
 from numpy.typing import NDArray
 
 from ..utils import VisionFrame, get_model_path, ensure_model_exists
-from .constants import MODEL_URLS, MODEL_CONFIGS
+from .constants import MODEL_URLS, MODEL_CONFIGS, FACE_MASK_REGION_SET
 
 
 class FaceParser:
@@ -47,30 +47,43 @@ class FaceParser:
             print(f"[FaceParser] Error initializing model: {e}")
             return False
     
-    def create_region_mask(self, crop_frame: VisionFrame, include_regions: List[int] = None) -> Optional[NDArray]:
-        """Create mask from face regions. 
+    def create_region_mask(self, crop_frame: VisionFrame, include_regions: Union[List[int], List[str]] = None) -> Optional[NDArray]:
+        """Create mask from face regions (matching facefusion implementation).
         
-        Common regions:
-        - 1: face skin
-        - 2-3: eyebrows
-        - 4-5: eyes
-        - 6: nose
-        - 7-9: mouth/lips
-        - 10-13: ears
-        - 14-16: glasses/accessories
-        - 17: hair
-        - 18: hat
-        - 19: earring/earpiece
+        Region names (strings) are converted to IDs using FACE_MASK_REGION_SET:
+        - 'skin': 1
+        - 'left-eyebrow': 2
+        - 'right-eyebrow': 3
+        - 'left-eye': 4
+        - 'right-eye': 5
+        - 'glasses': 6
+        - 'nose': 10
+        - 'mouth': 11
+        - 'upper-lip': 12
+        - 'lower-lip': 13
         
-        By default, includes face skin and facial features (1-13)
+        Can also pass region IDs (integers) directly.
+        By default, includes face skin and facial features.
         """
         if self.model_session is None:
             if not self.initialize():
                 return None
         
+        # Convert region names to IDs if strings are provided
+        region_ids = []
         if include_regions is None:
-            # Default: face skin + eyebrows + eyes + nose + mouth + ears
-            include_regions = list(range(1, 14))
+            # Default: face skin + eyebrows + eyes + nose + mouth
+            region_ids = list(FACE_MASK_REGION_SET.values())
+        else:
+            for region in include_regions:
+                if isinstance(region, str):
+                    if region in FACE_MASK_REGION_SET:
+                        region_ids.append(FACE_MASK_REGION_SET[region])
+                elif isinstance(region, int):
+                    region_ids.append(region)
+        
+        if not region_ids:
+            region_ids = list(FACE_MASK_REGION_SET.values())
         
         try:
             size = self.model_config['size']
@@ -78,8 +91,8 @@ class FaceParser:
             # Resize to model input size
             prepared = cv2.resize(crop_frame, size)
             
-            # Normalize: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225] (ImageNet)
-            prepared = prepared.astype(np.float32) / 255.0
+            # Convert BGR to RGB and normalize with ImageNet mean/std (matching facefusion)
+            prepared = prepared[:, :, ::-1].astype(np.float32) / 255.0
             mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
             std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
             prepared = (prepared - mean) / std
@@ -92,20 +105,16 @@ class FaceParser:
             outputs = self.model_session.run(None, {'input': prepared})
             segmentation = outputs[0][0]  # Get first output, remove batch
             
-            # Get class predictions (argmax across classes)
-            if len(segmentation.shape) == 3:
-                # Shape is [num_classes, H, W]
-                segmentation = np.argmax(segmentation, axis=0)
-            
-            # Create mask from selected regions
-            mask = np.zeros_like(segmentation, dtype=np.float32)
-            for region_id in include_regions:
-                mask[segmentation == region_id] = 1.0
+            # Create mask by checking if argmax is in region_ids (matching facefusion)
+            region_mask = np.isin(segmentation.argmax(0), region_ids)
             
             # Resize mask back to crop frame size
-            mask = cv2.resize(mask, (crop_frame.shape[1], crop_frame.shape[0]))
+            region_mask = cv2.resize(region_mask.astype(np.float32), (crop_frame.shape[1], crop_frame.shape[0]))
             
-            return mask
+            # Apply Gaussian blur for smooth edges (matching facefusion)
+            region_mask = (cv2.GaussianBlur(region_mask.clip(0, 1), (0, 0), 5).clip(0.5, 1) - 0.5) * 2
+            
+            return region_mask
             
         except Exception as e:
             print(f"[FaceParser] Error creating mask: {e}")
@@ -122,6 +131,10 @@ def get_face_parser(model_name: str = 'bisenet_resnet_34') -> Optional[FaceParse
     if model_name not in _parser_instances:
         _parser_instances[model_name] = FaceParser(model_name)
     return _parser_instances[model_name]
+
+
+
+
 
 
 
