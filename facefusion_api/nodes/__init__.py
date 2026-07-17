@@ -2,6 +2,7 @@
 ComfyUI nodes for FaceFusion face swapping.
 """
 from .image_nodes import SwapFaceImage, AdvancedSwapFaceImage
+from .deep_swapper_nodes import DeepSwapFaceImage
 from .video_nodes import SwapFaceVideo, AdvancedSwapFaceVideo
 from .detector_nodes import FaceDetectorNode
 from .utility_nodes import PixelBoostNode, FaceSwapApplier
@@ -11,6 +12,7 @@ __all__ = [
     # Image nodes
     'SwapFaceImage',
     'AdvancedSwapFaceImage',
+    'DeepSwapFaceImage',
     # Video nodes
     'SwapFaceVideo',
     'AdvancedSwapFaceVideo',

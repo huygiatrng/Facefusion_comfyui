@@ -35,6 +35,7 @@ env/
 
 # Models (large files) - downloaded automatically
 models/**/*.onnx
+models/**/*.dfm
 models/**/*.hash
 models/**/*.pth
 models/**/*.pt
@@ -43,6 +44,7 @@ models/**/*.bin
 
 # Keep models directory structure
 !models/.gitkeep
+!models/deep_swapper/.gitkeep
 
 # Temporary files
 *.tmp
