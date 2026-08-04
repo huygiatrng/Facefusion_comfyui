@@ -2,6 +2,7 @@
 Image Nodes for ComfyUI.
 """
 from .base import *
+from ..utils import cv2_result_to_tensor
 
 class SwapFaceImage:
 	@classmethod
@@ -120,8 +121,9 @@ class SwapFaceImage:
 					face_mask_padding=face_mask_padding
 				)
 				
-				# Convert back to tensor
-				result_tensor = cv2_to_tensor(result_cv2)
+				# Apply the SDR model delta to the original tensor so EXR/HDR
+				# values outside the display range survive the round trip.
+				result_tensor = cv2_result_to_tensor(result_cv2, target_tensor)
 				return result_tensor
 			except Exception as e:
 				print(f"[SwapFaceImage] Local inference error: {e}")

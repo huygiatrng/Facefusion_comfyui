@@ -22,17 +22,24 @@ Face = Dict[str, Any]
 
 
 def tensor_to_cv2(tensor: Tensor) -> VisionFrame:
-    """Convert ComfyUI tensor to OpenCV image."""
+    """Convert a ComfyUI image tensor to an 8-bit OpenCV working frame.
+
+    FaceFusion's ONNX models operate on SDR frames. ComfyUI image tensors are
+    normalized floats, but EXR loaders can legitimately produce values outside
+    the 0-1 display range. Clip only the model-facing proxy here so those values
+    cannot wrap around during the uint8 conversion.
+    """
     # tensor shape: [B, H, W, C] or [H, W, C]
     if tensor.dim() == 4:
         tensor = tensor.squeeze(0)
     
     # Convert to numpy and scale to 0-255
-    img = tensor.cpu().numpy()
-    if img.max() <= 1.0:
-        img = (img * 255).astype(np.uint8)
+    img = tensor.detach().cpu().numpy()
+    if np.issubdtype(img.dtype, np.floating):
+        img = np.nan_to_num(img, nan=0.0, posinf=1.0, neginf=0.0)
+        img = np.rint(np.clip(img, 0.0, 1.0) * 255.0).astype(np.uint8)
     else:
-        img = img.astype(np.uint8)
+        img = np.clip(img, 0, 255).astype(np.uint8)
     
     # Convert RGB to BGR for OpenCV
     if img.shape[2] == 3:
@@ -54,6 +61,34 @@ def cv2_to_tensor(image: VisionFrame) -> Tensor:
     # Convert to tensor and add batch dimension
     tensor = torch.from_numpy(image).unsqueeze(0)
     return tensor
+
+
+def cv2_result_to_tensor(image: VisionFrame, reference_tensor: Tensor) -> Tensor:
+    """Restore an SDR OpenCV result while preserving the reference HDR range.
+
+    The face models still receive a clipped SDR proxy, but their pixel delta is
+    applied to the original float tensor. Unchanged pixels therefore round-trip
+    exactly, including negative values and highlights above 1.0.
+    """
+    result_tensor = cv2_to_tensor(image)
+
+    if not reference_tensor.is_floating_point():
+        return result_tensor
+
+    reference = reference_tensor
+    if reference.dim() == 3:
+        reference = reference.unsqueeze(0)
+
+    reference_sdr = cv2_to_tensor(tensor_to_cv2(reference))
+    result_tensor = result_tensor.to(device=reference.device, dtype=reference.dtype)
+    reference_sdr = reference_sdr.to(device=reference.device, dtype=reference.dtype)
+
+    if result_tensor.shape != reference.shape:
+        return result_tensor
+
+    restored = reference + result_tensor - reference_sdr
+    unchanged = torch.all(result_tensor == reference_sdr, dim=-1, keepdim=True)
+    return torch.where(unchanged, reference, restored)
 
 
 def calculate_distance(embedding1: NDArray, embedding2: NDArray) -> float:

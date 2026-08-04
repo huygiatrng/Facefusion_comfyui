@@ -1,6 +1,6 @@
 from .core import (
 	SwapFaceImage, SwapFaceVideo,
-	AdvancedSwapFaceImage, AdvancedSwapFaceVideo,
+	AdvancedSwapFaceImage, AdvancedSwapFaceVideo, DeepSwapFaceImage,
 	FaceDetectorNode, FaceSwapApplier, PixelBoostNode, FaceDataVisualizer, FaceMaskVisualizer
 )
 from .types import NodeClassMapping, NodeDisplayNameMapping
@@ -13,6 +13,7 @@ NODE_CLASS_MAPPINGS : NodeClassMapping =\
 	# Advanced nodes
 	'AdvancedSwapFaceImage': AdvancedSwapFaceImage,
 	'AdvancedSwapFaceVideo': AdvancedSwapFaceVideo,
+	'DeepSwapFaceImage': DeepSwapFaceImage,
 	# Face detection and utilities
 	'FaceDetectorNode': FaceDetectorNode,
 	'FaceSwapApplier': FaceSwapApplier,
@@ -29,6 +30,7 @@ NODE_DISPLAY_NAME_MAPPINGS : NodeDisplayNameMapping =\
 	# Advanced nodes
 	'AdvancedSwapFaceImage': 'FF: Advanced Swap Face (Image)',
 	'AdvancedSwapFaceVideo': 'FF: Advanced Swap Face (Video)',
+	'DeepSwapFaceImage': 'FF: Deep Swap Face (DFM)',
 	# Face detection and utilities
 	'FaceDetectorNode': 'FF: Face Detector',
 	'FaceSwapApplier': 'FF: Face Swap Applier',

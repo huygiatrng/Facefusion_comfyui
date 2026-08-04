@@ -5,6 +5,7 @@ This file now imports from the reorganized nodes package.
 from .nodes import (
     SwapFaceImage,
     AdvancedSwapFaceImage,
+    DeepSwapFaceImage,
     SwapFaceVideo,
     AdvancedSwapFaceVideo,
     FaceDetectorNode,
@@ -17,6 +18,7 @@ from .nodes import (
 __all__ = [
     'SwapFaceImage',
     'AdvancedSwapFaceImage',
+    'DeepSwapFaceImage',
     'SwapFaceVideo',
     'AdvancedSwapFaceVideo',
     'FaceDetectorNode',

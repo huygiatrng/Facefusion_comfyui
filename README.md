@@ -36,6 +36,7 @@ First run downloads models (~200MB), then everything runs locally.
 - **SwapFaceImage** - Basic image face swap
 - **AdvancedSwapFaceImage** ⭐ - Full control with all options (recommended)
 - **AdvancedSwapFaceVideo** - Video face swapping with parallel processing
+- **DeepSwapFaceImage** - DeepFaceLive `.dfm` model support (single images and batches)
 - **FaceSwapApplier** - Swap specific detected faces
 
 ### Detection & Tools
@@ -168,6 +169,23 @@ All image swapper nodes **automatically detect and handle**:
 - ✅ Returns same format as input
 
 **Example:** Feed 10 images → Get 10 swapped images back!
+
+### DeepFaceLive DFM models
+
+1. Create or download a DeepFaceLive-compatible `.dfm` model.
+2. Place it in `models/deep_swapper/` (subfolders are supported).
+3. Restart ComfyUI so the model appears in **FF: Deep Swap Face (DFM)**.
+4. Use `morph` when the selected DFM model exposes a morph input. Models
+   without that input safely ignore the value.
+
+DFM models are identity-specific, so this node does not require a source image.
+
+### EXR and HDR image sequences
+
+Local image and video swapping now uses a clipped SDR proxy only for ONNX
+inference, then applies the swap delta back to the original float tensor.
+Negative values and highlights above `1.0` therefore survive unchanged outside
+the swapped region instead of wrapping to black during `uint8` conversion.
 
 ---
 
