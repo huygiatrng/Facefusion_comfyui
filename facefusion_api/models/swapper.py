@@ -11,6 +11,7 @@ import onnx
 from onnx import numpy_helper
 from numpy.typing import NDArray
 
+from ..providers import select_execution_providers
 from ..utils import VisionFrame, Face, get_model_path, ensure_model_exists, implode_pixel_boost, explode_pixel_boost
 from .constants import MODEL_URLS, MODEL_CONFIGS, WARP_TEMPLATES, FACE_MASK_AREA_SET, FACE_MASK_REGION_SET
 
@@ -47,7 +48,7 @@ class LocalFaceSwapper:
                     return False
             
             # Create ONNX session
-            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+            providers = select_execution_providers()
             self.model_session = ort.InferenceSession(model_path, providers=providers)
             
             # Load model_initializer for inswapper models
