@@ -10,6 +10,7 @@ import onnxruntime as ort
 from numpy.typing import NDArray
 
 from ..detection import detect_faces
+from ..providers import select_execution_providers
 from ..utils import Face, VisionFrame
 
 
@@ -59,19 +60,8 @@ def resolve_deep_swapper_model_path(model_name: str) -> Path:
     return model_path
 
 
-def _select_execution_providers() -> List[str]:
-    available_providers = set(ort.get_available_providers())
-    preferred_providers = [
-        "CUDAExecutionProvider",
-        "ROCMExecutionProvider",
-        "DmlExecutionProvider",
-        "CoreMLExecutionProvider",
-        "OpenVINOExecutionProvider",
-        "CPUExecutionProvider",
-    ]
-    return [
-        provider for provider in preferred_providers if provider in available_providers
-    ]
+# Kept as a module-level name for existing callers.
+_select_execution_providers = select_execution_providers
 
 
 class DeepFaceLiveSwapper:

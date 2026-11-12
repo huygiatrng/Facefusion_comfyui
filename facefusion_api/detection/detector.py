@@ -10,6 +10,7 @@ import numpy as np
 import onnxruntime as ort
 from numpy.typing import NDArray
 
+from ..providers import select_execution_providers
 from ..utils import (
     VisionFrame, BoundingBox, FaceLandmark5, Face,
     create_face_dict, sort_faces_by_order, select_face_by_position,
@@ -57,7 +58,7 @@ class FaceDetector:
                 ):
                     return False
             
-            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+            providers = select_execution_providers()
             self.detector_session = ort.InferenceSession(detector_path, providers=providers)
             self.recognition_session = ort.InferenceSession(recognition_path, providers=providers)
             
