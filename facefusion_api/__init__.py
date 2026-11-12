@@ -4,6 +4,9 @@ from .core import (
 	FaceDetectorNode, FaceSwapApplier, PixelBoostNode, FaceDataVisualizer, FaceMaskVisualizer
 )
 from .types import NodeClassMapping, NodeDisplayNameMapping
+from .memory import install_comfy_hooks
+
+install_comfy_hooks()
 
 NODE_CLASS_MAPPINGS : NodeClassMapping =\
 {
